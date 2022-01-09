@@ -1,7 +1,7 @@
 package main
 
 import (
-	"processManager/restAPI"
+	"clicksminuteper.net/process-manager/restAPI"
 )
 
 func main() {

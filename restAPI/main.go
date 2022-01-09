@@ -1,35 +1,81 @@
 package restAPI
 
 import (
-	"net/http"
+	"github.com/gin-gonic/gin"
 
-    "github.com/gin-gonic/gin"
+	"log"
 )
-
-
-
-type album struct {
-	ID     string  `json:"id"`
-	Title  string  `json:"title"`
-	Artist string  `json:"artist"`
-	Price  float64 `json:"price"`
-}
-
-var albums = []album{
-	{ID: "1", Title:"Blue Train", Artist: "John Coltrane", Price: 56.99},
-	{ID: "1", Title:"Blue Train", Artist: "John Coltrane", Price: 56.99},
-	{ID: "2", Title: "Kind Of Blue", Artist: "Miles Davis", Price: 120.23},
-}
 
 func Run() {
 	router := gin.Default()
-	router.GET("/albums", getAlbums)
+	router.GET("/containers/create", CreateContainer)
+	router.GET("/containers/start", StartContainer)
+	router.GET("/containers/stop", StopContainer)
+	router.GET("/containers/delete", DeleteContainer)
 
-	router.Run("localhost:8080")
+	router.GET("/containers/list", ListContainers)
+	router.GET("/containers/list/:id", GetContainer)
+
+	// Log server start
+	log.Println("Server starting on port 8080")
+	err := router.Run("localhost:8080")
+	if err != nil {
+		// Log the error
+		log.Fatal(err)
+		return
+	}
 }
 
-func
+func CreateContainer(c *gin.Context) {
+	// Log the request
+	log.Println("CreateContainer called with: " + c.Request.URL.String())
 
-func getAlbums(ctx *gin.Context) {
-	ctx.JSON(http.StatusOK, albums)
+	// TODO: Implement CreateContainer
+	c.JSON(200, containerCreateResponse{ID: 0})
+}
+
+func StartContainer(c *gin.Context) {
+	// Log the request
+	log.Println("StartContainer called with: " + c.Request.URL.String())
+
+	// TODO: Implement StartContainer
+	c.JSON(200, containerStartResponse{Success: true})
+}
+
+func StopContainer(c *gin.Context) {
+	// Log the request
+	log.Println("StopContainer called with: " + c.Request.URL.String())
+
+	// TODO: Implement StopContainer
+	c.JSON(200, containerStopResponse{Success: true})
+}
+
+func DeleteContainer(c *gin.Context) {
+	// Log the request
+	log.Println("DeleteContainer called with: " + c.Request.URL.String())
+
+	// TODO: Implement DeleteContainer
+	c.JSON(200, containerDeleteResponse{Success: true})
+}
+
+func ListContainers(c *gin.Context) {
+	// Log the request
+	log.Println("ListContainers called with: " + c.Request.URL.String())
+
+	// TODO: Implement ListContainers
+	c.JSON(200, containerList{
+		Containers: []container{
+			{ID: 0},
+		},
+	})
+}
+
+func GetContainer(c *gin.Context) {
+	// Log the request
+	log.Println("GetContainer called with: " + c.Request.URL.String())
+
+	// TODO: Implement GetContainer
+	c.JSON(200, container{
+		ID: 0,
+	})
 }
