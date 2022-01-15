@@ -1,5 +1,5 @@
-/containerManager/containers/*
-/containerManager/mounts/*
+/containerManager/containers/
+/containerManager/mounts/
 # Remove these as they may contain sensitive information such as discord tokens
 
 .idea/

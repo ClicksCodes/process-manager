@@ -12,7 +12,9 @@ import (
 	"os"
 	"os/exec"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/containerd/containerd"
 
@@ -65,11 +67,16 @@ func getLatestConfig(id string) string {
 	return strings.TrimSuffix(filepath.Base(latest), filepath.Ext(latest))
 }
 
-func BuildContainer(id string, version string) error {
+func GetVersion(id string, version string) string {
 	if version == "@latest" {
 		log.Println("Finding the latest config")
 		version = getLatestConfig(id)
 	}
+	return version
+}
+
+func BuildContainer(id string, version string) error {
+	version = GetVersion(id, version)
 
 	// Build with nixos
 	// See https://nixos.org/guides/building-and-running-docker-images.html
@@ -77,7 +84,7 @@ func BuildContainer(id string, version string) error {
 
 	log.Println("./containerManager/config/" + id + "/" + version + ".nix")
 
-	cmd := exec.Command("nix-build", "./containerManager/config/"+id+"/"+version+".nix")
+	cmd := exec.Command("sudo", "nix-build", "./containerManager/config/"+id+"/"+version+".nix")
 
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
@@ -101,7 +108,12 @@ func BuildContainer(id string, version string) error {
 	return nil
 }
 
-func RunContainer(id string) error {
+func RunContainer(id string, version string) error {
+	version = GetVersion(id, version)
+	ts := strconv.FormatInt(time.Now().Unix(), 10)
+
+	log.Println("Current time: " + ts)
+
 	client, err := containerd.New("/run/containerd/containerd.sock")
 	if err != nil {
 		panic(err)
@@ -151,16 +163,16 @@ func RunContainer(id string) error {
 
 	log.Printf("Successfully imported %s image\n", image.Name())
 
-	err = image.Unpack(ctx, "native")
+	err = image.Unpack(ctx, containerd.DefaultSnapshotter)
 	if err != nil {
 		return err
 	}
 
-	snapshot := containerd.WithNewSnapshot("clicks-container-manager-snapshot-"+id+"@"+"version", image)
+	snapshot := containerd.WithNewSnapshot("clicks-container-manager-snapshot-"+id+"-"+version+"-"+ts, image)
 
 	container, err := client.NewContainer(
 		ctx,
-		"clicks-container-manager-"+id,
+		"clicks-container-manager-"+id+"-"+version+"-"+ts,
 		containerd.WithImage(image),
 		snapshot,
 		containerd.WithNewSpec(oci.WithImageConfig(image)),
@@ -183,21 +195,31 @@ func RunContainer(id string) error {
 	if err != nil {
 		return err
 	}
+
 	defer task.Delete(ctx)
 
 	log.Println("Created run-task")
-
-	_, err = task.Wait(ctx)
-	if err != nil {
-		fmt.Println(err)
-	}
-
-	log.Println("Finished waiting to become runnable")
 
 	// Run the container!
 	if err := task.Start(ctx); err != nil {
 		return err
 	}
+
+	status, err := task.Wait(ctx)
+	if err != nil {
+		fmt.Println(err)
+		return err
+	}
+
+	code := <-status
+
+	exitCode, timeToRun, err := code.Result()
+
+	if err != nil {
+		return err
+	}
+
+	log.Println("Container exited with code " + strconv.Itoa(int(exitCode)) + " at " + timeToRun.String())
 
 	log.Println("Started container!")
 

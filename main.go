@@ -13,10 +13,10 @@ func main() {
 	}
 	log.Println("Container built, running...")
 
-	err = containerManager.RunContainer("mini-test")
+	err = containerManager.RunContainer("mini-test", "@latest")
 	if err != nil {
 		log.Println("Container failed to run, " + err.Error())
 		return
 	}
-	log.Println("Run container successfully")
+	log.Println("Ran container successfully")
 }

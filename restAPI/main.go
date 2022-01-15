@@ -41,7 +41,7 @@ func BuildContainer(c *gin.Context) {
 
 	uid := "1234"
 	name := "test"
-	containerManager.BuildContainer(uid+":"+name, "@latest")
+	containerManager.BuildContainer(uid + ":" + name, "@latest")
 
 	c.JSON(200, containerBuildResponse{ID: 0})
 }
