@@ -10,8 +10,8 @@ type container struct {
 } // Container
 
 type containerList struct {
-	Containers []container `json:"containers"` // List of containers
-} // List of containers
+	Containers []container `json:"containerManager"` // List of containerManager
+} // List of containerManager
 
 type containerCreate struct {
 	Template containerTemplate `json:"template"` // Container template
@@ -20,6 +20,10 @@ type containerCreate struct {
 type containerCreateResponse struct {
 	ID int `json:"id"` // Container ID
 } // Container creation response
+
+type containerBuildResponse struct {
+	ID int `json:"id"` // ID of the built container
+} // Container build response
 
 type containerDelete struct {
 	ID int `json:"id"` // Container ID

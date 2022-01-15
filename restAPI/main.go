@@ -1,20 +1,21 @@
 package restAPI
 
 import (
+	"clicksminuteper.net/process-manager/containerManager"
 	"github.com/gin-gonic/gin"
-
 	"log"
 )
 
 func Run() {
 	router := gin.Default()
-	router.GET("/containers/create", CreateContainer)
-	router.GET("/containers/start", StartContainer)
-	router.GET("/containers/stop", StopContainer)
-	router.GET("/containers/delete", DeleteContainer)
+	router.GET("/containerManager/create", CreateContainer)
+	router.GET("/containerManager/start", StartContainer)
+	router.GET("/containerManager/build", BuildContainer)
+	router.GET("/containerManager/stop", StopContainer)
+	router.GET("/containerManager/delete", DeleteContainer)
 
-	router.GET("/containers/list", ListContainers)
-	router.GET("/containers/list/:id", GetContainer)
+	router.GET("/containerManager/list", ListContainers)
+	router.GET("/containerManager/list/:id", GetContainer)
 
 	// Log server start
 	log.Println("Server starting on port 8080")
@@ -32,6 +33,17 @@ func CreateContainer(c *gin.Context) {
 
 	// TODO: Implement CreateContainer
 	c.JSON(200, containerCreateResponse{ID: 0})
+}
+
+func BuildContainer(c *gin.Context) {
+	// Log the request
+	log.Println("BuildContainer called with: " + c.Request.URL.String())
+
+	uid := "1234"
+	name := "test"
+	containerManager.BuildContainer(uid+":"+name, "@latest")
+
+	c.JSON(200, containerBuildResponse{ID: 0})
 }
 
 func StartContainer(c *gin.Context) {
