@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/containerd/containerd"
+	cni "github.com/containerd/go-cni"
 
 	"path/filepath"
 )
@@ -199,6 +200,7 @@ func RunContainer(id string, version string) error {
 	defer task.Delete(ctx)
 
 	log.Println("Created run-task")
+	log.Println(task.Metrics(ctx))
 
 	// Run the container!
 	if err := task.Start(ctx); err != nil {
