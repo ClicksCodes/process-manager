@@ -4,23 +4,26 @@ import (
 	"compress/gzip"
 	"context"
 	"fmt"
+	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/cio"
 	"github.com/containerd/containerd/mount"
 	"github.com/containerd/containerd/namespaces"
 	"github.com/containerd/containerd/oci"
+	"github.com/containerd/go-cni"
 	"log"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/containerd/containerd"
-	cni "github.com/containerd/go-cni"
-
-	"path/filepath"
 )
+
+type Options struct {
+	id   string
+	name string
+}
 
 func getAllContainers() {
 
@@ -30,7 +33,7 @@ func getContainers(ids []string) {
 
 }
 
-func createContainer(id string) {
+func createContainer(options Options) {
 
 }
 
@@ -110,25 +113,44 @@ func BuildContainer(id string, version string) error {
 }
 
 func RunContainer(id string, version string) error {
-	version = GetVersion(id, version)
-	ts := strconv.FormatInt(time.Now().Unix(), 10)
+	log.Println("Ready to run container " + id + " with version " + version)
 
-	log.Println("Current time: " + ts)
+	network, err := cni.New()
+	if err != nil {
+		return err
+	}
+
+	if err := network.Load(cni.WithLoNetwork); err != nil {
+		return err
+	}
+	if err := network.Load(cni.WithConfFile("./containerManager/networking/bridge.json")); err != nil {
+		return err
+	}
+
+	log.Println("Created container network & loaded configuration")
+
+	version = GetVersion(id, version)
+	timestamp := strconv.FormatInt(time.Now().Unix(), 10)
+
+	log.Println("Current time: " + timestamp)
 
 	client, err := containerd.New("/run/containerd/containerd.sock")
 	if err != nil {
-		panic(err)
+		return err
 	}
-	defer func(client *containerd.Client) {
-		err := client.Close()
-		if err != nil {
-			panic(err)
-		}
-	}(client)
 
-	log.Println("Connected to containerd")
+	//defer func(client *containerd.Client) {
+	//	err := client.Close(); if err != nil { panic(err) }
+	//}(client)
 
 	ctx := namespaces.WithNamespace(context.Background(), "clicks-container-manager")
+
+	log.Println("Created containerd client")
+
+	//IP := net.Interfaces
+	// IP := net.Interfaces["eth"].IPConfigs[0].IP.String()
+	// fmt.Printf("IP of the default interface %s:%s", "eth0", IP)
+
 	symlinks, err := filepath.EvalSymlinks("./containerManager/containers/" + id)
 	if err != nil {
 		return err
@@ -140,12 +162,10 @@ func RunContainer(id string, version string) error {
 	if err != nil {
 		return err
 	}
-	defer func(file *os.File) {
-		err := file.Close()
-		if err != nil {
 
-		}
-	}(file)
+	//defer func(file *os.File) {
+	//	err := file.Close(); if err != nil { panic(err) }
+	//}(file)
 
 	log.Println("Opened container file for reading")
 
@@ -153,27 +173,27 @@ func RunContainer(id string, version string) error {
 	if err != nil {
 		return err
 	}
+
 	log.Println("Ungzipped container file")
 
 	imported, err := client.Import(ctx, reader)
-	// See https://blog.scottlowe.org/2020/01/25/manually-loading-container-images-with-containerd/
 	if err != nil {
 		return err
 	}
+	// See https://blog.scottlowe.org/2020/01/25/manually-loading-container-images-with-containerd/
 	image := containerd.NewImage(client, imported[0])
 
 	log.Printf("Successfully imported %s image\n", image.Name())
 
-	err = image.Unpack(ctx, containerd.DefaultSnapshotter)
-	if err != nil {
+	if err := image.Unpack(ctx, containerd.DefaultSnapshotter); err != nil {
 		return err
 	}
 
-	snapshot := containerd.WithNewSnapshot("clicks-container-manager-snapshot-"+id+"-"+version+"-"+ts, image)
+	snapshot := containerd.WithNewSnapshot("clicks-container-manager-snapshot-"+id+"-"+version+"-"+timestamp, image)
 
 	container, err := client.NewContainer(
 		ctx,
-		"clicks-container-manager-"+id+"-"+version+"-"+ts,
+		"clicks-container-manager-"+id+"-"+version+"-"+timestamp,
 		containerd.WithImage(image),
 		snapshot,
 		containerd.WithNewSpec(oci.WithImageConfig(image)),
@@ -181,12 +201,23 @@ func RunContainer(id string, version string) error {
 	if err != nil {
 		return err
 	}
-	defer container.Delete(ctx)
+
+	//defer func(container containerd.Container, ctx context.Context, opts ...containerd.DeleteOpts) {
+	//	if err := container.Delete(ctx, opts...); err != nil { panic(err) }
+	//}(container, ctx)
+
+	net, err := network.Setup(ctx, id+"-"+timestamp, fmt.Sprintf("/proc/%d/ns/net", os.Getpid()))
+	if err != nil {
+		return err
+	}
+	// Print out all the interfaces along with their IP addresses
+	for key, _ := range net.Interfaces {
+		log.Println(key)
+	}
 
 	log.Printf("Successfully loaded %s container\n", container.ID())
 
-	err = mount.SetTempMountLocation("./containerManager/mounts/" + id)
-	if err != nil {
+	if err = mount.SetTempMountLocation("./containerManager/mounts/" + id); err != nil {
 		return err
 	}
 
@@ -197,7 +228,9 @@ func RunContainer(id string, version string) error {
 		return err
 	}
 
-	defer task.Delete(ctx)
+	//defer func(task containerd.Task, ctx context.Context, opts ...containerd.ProcessDeleteOpts) {
+	//	if _, err := task.Delete(ctx, opts...); err != nil { panic(err) }
+	//}(task, ctx)
 
 	log.Println("Created run-task")
 	log.Println(task.Metrics(ctx))
@@ -209,14 +242,12 @@ func RunContainer(id string, version string) error {
 
 	status, err := task.Wait(ctx)
 	if err != nil {
-		fmt.Println(err)
 		return err
 	}
 
 	code := <-status
 
 	exitCode, timeToRun, err := code.Result()
-
 	if err != nil {
 		return err
 	}
@@ -227,3 +258,5 @@ func RunContainer(id string, version string) error {
 
 	return nil
 }
+
+/// See also https://github.com/kubernetes/kubernetes/issues/54918 and add to notes

@@ -1,0 +1,5 @@
+{
+    "cniVersion": "0.4.4",
+    "name": "bridge",
+    "type": "bridge"
+}
