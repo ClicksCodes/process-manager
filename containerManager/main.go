@@ -115,17 +115,19 @@ func BuildContainer(id string, version string) error {
 func RunContainer(id string, version string) error {
 	log.Println("Ready to run container " + id + " with version " + version)
 
-	network, err := cni.New()
+	network, err := cni.New(cni.WithPluginDir([]string{"/nix/store/84qpsw3nz2zahmz9xxvzbmf8sfdmk771-cni-plugins-1.0.1/bin"}))
 	if err != nil {
 		return err
-	}
+	} // See https://github.com/containerd/go-cni/search?q=WithPluginDir
 
-	if err := network.Load(cni.WithLoNetwork); err != nil {
-		return err
-	}
+	//if err := network.Load(cni.WithLoNetwork); err != nil {
+	//	return err
+	//}
 	if err := network.Load(cni.WithConfFile("./containerManager/networking/bridge.json")); err != nil {
 		return err
 	}
+	// See https://github.com/containernetworking/cni/blob/master/SPEC.md for the format of the config
+	// Important for nix paths
 
 	log.Println("Created container network & loaded configuration")
 
@@ -163,9 +165,12 @@ func RunContainer(id string, version string) error {
 		return err
 	}
 
-	//defer func(file *os.File) {
-	//	err := file.Close(); if err != nil { panic(err) }
-	//}(file)
+	defer func(file *os.File) {
+		err := file.Close()
+		if err != nil {
+			panic(err)
+		}
+	}(file)
 
 	log.Println("Opened container file for reading")
 
@@ -202,18 +207,11 @@ func RunContainer(id string, version string) error {
 		return err
 	}
 
-	//defer func(container containerd.Container, ctx context.Context, opts ...containerd.DeleteOpts) {
-	//	if err := container.Delete(ctx, opts...); err != nil { panic(err) }
-	//}(container, ctx)
-
-	net, err := network.Setup(ctx, id+"-"+timestamp, fmt.Sprintf("/proc/%d/ns/net", os.Getpid()))
-	if err != nil {
-		return err
-	}
-	// Print out all the interfaces along with their IP addresses
-	for key, _ := range net.Interfaces {
-		log.Println(key)
-	}
+	defer func(container containerd.Container, ctx context.Context, opts ...containerd.DeleteOpts) {
+		if err := container.Delete(ctx, opts...); err != nil {
+			panic(err)
+		}
+	}(container, ctx)
 
 	log.Printf("Successfully loaded %s container\n", container.ID())
 
@@ -228,12 +226,58 @@ func RunContainer(id string, version string) error {
 		return err
 	}
 
-	//defer func(task containerd.Task, ctx context.Context, opts ...containerd.ProcessDeleteOpts) {
-	//	if _, err := task.Delete(ctx, opts...); err != nil { panic(err) }
-	//}(task, ctx)
+	defer func(task containerd.Task, ctx context.Context, opts ...containerd.ProcessDeleteOpts) {
+		if _, err := task.Delete(ctx, opts...); err != nil {
+			panic(err)
+		}
+	}(task, ctx)
 
 	log.Println("Created run-task")
 	log.Println(task.Metrics(ctx))
+
+	netPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
+	netId := id + "-" + timestamp
+
+	/*defer func(network cni.CNI, ctx context.Context, id string, path string, opts ...cni.NamespaceOpts) {
+		if err := network.Remove(ctx, id, path, opts...); err != nil { panic(err) }
+	}(network, ctx, netId, netPath)
+	// This isn't needed, as the container is deleted when the task is deleted
+	*/
+
+	net, err := network.Setup(ctx, netId, netPath)
+	if err != nil {
+		return err
+	}
+
+	// Print out all the interfaces along with their IP addresses
+	for key, data := range net.Interfaces {
+
+		var ipText string
+		var macText string
+		var sandboxText string
+
+		if len(data.IPConfigs) > 0 {
+			ipText = "got IP " + data.IPConfigs[0].IP.String()
+		} else {
+			ipText = "has no in-container IP"
+		}
+
+		if data.Mac != "" {
+			macText = ", MAC address " + data.Mac
+		} else {
+			macText = ", no MAC address"
+		}
+
+		if data.Sandbox != "" {
+			sandboxText = " and is using path " + data.Sandbox
+		} else {
+			sandboxText = " and doesn't have a sandbox"
+		}
+
+		log.Println("Interface " + key + " " + ipText + macText + sandboxText)
+	}
+
+	log.Println("Connected the container to networking")
 
 	// Run the container!
 	if err := task.Start(ctx); err != nil {

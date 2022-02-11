@@ -1,5 +1,20 @@
 {
-    "cniVersion": "0.4.4",
-    "name": "bridge",
-    "type": "bridge"
+    "cniVersion": "0.3.1",
+    "name": "clicks-testnet-bridge",
+    "type": "bridge",
+    "bridge": "clicks-test0",
+    "isDefaultGateway": true,
+    "forceAddress": false,
+    "ipMasq": true,
+    "hairpinMode": true,
+    "ipam": {
+        "type": "host-local",
+        "subnet": "10.10.0.0/16"
+    },
+    "dns": {
+        "nameservers": [
+            "1.1.1.1",
+            "1.0.0.1"
+        ]
+    }
 }
