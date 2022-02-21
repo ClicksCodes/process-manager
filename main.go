@@ -2,6 +2,7 @@ package main
 
 import (
 	"clicksminuteper.net/process-manager/containerManager"
+	"clicksminuteper.net/process-manager/restAPI"
 	"log"
 )
 
@@ -19,4 +20,6 @@ func main() {
 		return
 	}
 	log.Println("Ran container successfully")
+
+	restAPI.Run()
 }

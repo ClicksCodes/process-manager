@@ -14,9 +14,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -38,10 +38,12 @@ func createContainer(options Options) {
 }
 
 func getLatestConfig(id string) string {
-	var files []string
+	var files []int64
 
 	// Get all the files in the config directory
-	root := "./containerManager/config"
+	root := "./containerManager/config/" + id
+	fileToIDRegex := regexp.MustCompile(`^(?:.*/)?([0-9]+)\.nix$`)
+
 	err := filepath.Walk(root, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -49,8 +51,16 @@ func getLatestConfig(id string) string {
 		if info.IsDir() {
 			return nil
 		}
-		if filepath.Ext(path) == ".nix" {
-			files = append(files, path)
+		// Find the file name by the following regex:
+		// ^(?:.*\/)?([0-9]+)\.nix$
+		// The group is the config ID, if there is a match the ID should be parsed as an int and appended to the files array
+		match := fileToIDRegex.FindStringSubmatch(path)
+		if match != nil {
+			id, err := strconv.ParseInt(match[1], 10, 64)
+			if err != nil {
+				return err
+			}
+			files = append(files, id)
 		}
 		return nil
 	})
@@ -60,6 +70,7 @@ func getLatestConfig(id string) string {
 
 	// Sort the files by name
 	sort.Slice(files, func(i, j int) bool {
+		// Find the file's name
 		return files[i] < files[j]
 	})
 
@@ -68,7 +79,7 @@ func getLatestConfig(id string) string {
 
 	// Return the latest file
 	// We return without the extension, as we will add it later
-	return strings.TrimSuffix(filepath.Base(latest), filepath.Ext(latest))
+	return strconv.FormatInt(latest, 10)
 }
 
 func GetVersion(id string, version string) string {
@@ -238,11 +249,11 @@ func RunContainer(id string, version string) error {
 	netPath := fmt.Sprintf("/proc/%d/ns/net", task.Pid())
 	netId := id + "-" + timestamp
 
-	/*defer func(network cni.CNI, ctx context.Context, id string, path string, opts ...cni.NamespaceOpts) {
+	defer func(network cni.CNI, ctx context.Context, id string, path string, opts ...cni.NamespaceOpts) {
 		if err := network.Remove(ctx, id, path, opts...); err != nil { panic(err) }
 	}(network, ctx, netId, netPath)
 	// This isn't needed, as the container is deleted when the task is deleted
-	*/
+	// The above comment is a lie
 
 	net, err := network.Setup(ctx, netId, netPath)
 	if err != nil {

@@ -46,6 +46,17 @@ func BuildContainer(c *gin.Context) {
 	c.JSON(200, containerBuildResponse{ID: 0})
 }
 
+func BuildContainerFromNixFile(c *gin.Context) {
+	// Log the request
+	log.Println("BuildContainer called with: " + c.Request.URL.String())
+
+	uid := "1234"
+	name := "test"
+	containerManager.BuildContainer(uid + ":" + name, "@latest")
+
+	c.JSON(200, containerBuildResponse{ID: 0})
+}
+
 func StartContainer(c *gin.Context) {
 	// Log the request
 	log.Println("StartContainer called with: " + c.Request.URL.String())
